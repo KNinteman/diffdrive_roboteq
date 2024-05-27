@@ -1,18 +1,29 @@
 # diffdrive_roboteq
-A ROS2_Control Hardware Interface for a Roboteq Motor Controller working with differential drive.
+A ROS2_Control Hardware Interface for a Roboteq Motor Controller designed for differential drive systems.
 
-This interface is designed to provide a ros2_control hardware interface for a Roboteq Motor Controller. It is designed to be used with a diff_drive_controller from ros2_control. It is expected to communicate via serial and to have two motors, each with velocity control and position/velocity feedback.
+## Overview
+This package provides a ROS2 Control hardware interface for interacting with a Roboteq Motor Controller. It is specifically tailored for use with the `diff_drive_controller` from `ros2_control`. The interface is configured to communicate via serial connection and assumes the presence of two motors, each capable of velocity control with position/velocity feedback.
 
-# Getting Started
-Head into {your_ros2_ws}/src and clone this repo.
-Move one directory back into your ros2_ws and use ```colcon build --packages-select diffdrive_roboteq``` in order to build the package.
-In order for the package to succesfully work the serial package will also have to be build. I have used the following: [serial](https://github.com/wjwwood/serial/tree/ros2?tab=MIT-1-ov-file).
+## Getting Started
+To begin using `diffdrive_roboteq`, follow these steps:
 
-# Configuration
-The package needs to be correctly configured before it can be used.
-In order to customize the feedback to be received from the motor controller, you can comment in/out in /config/query.yaml.
+1. Clone this repository into your ROS 2 workspace:
+   ```
+   cd {your_ros2_ws}/src
+   git clone https://github.com/{your_username}/diffdrive_roboteq.git
+   ```
+2. Navigate to your ROS 2 workspace root directory and build the package:
+   ```
+   cd ..
+   colcon build --packages-select diffdrive_roboteq
+   ```
+3. Ensure that the serial package is also built. You can use the following link for reference: [serial](https://github.com/wjwwood/serial/tree/ros2?tab=MIT-1-ov-file).
 
-As well a ros2_control tag will have to be set up according to the following template:
+## Configuration
+Before using the package, it needs to be properly configured. Here are some steps to consider:
+
+- Customize the feedback received from the motor controller by editing the /config/query.yaml file.
+- Set up a ros2_control tag in your robot's URDF according to the template provided below:
 ```
 <ros2_control name="RoboteqInterface" type="system">
             <hardware>
@@ -40,3 +51,14 @@ As well a ros2_control tag will have to be set up according to the following tem
             </joint>
         </ros2_control>
 ```
+Ensure that you fill in the necessary parameters such as serial_port, baud_rate, etc., based on your specific hardware setup.
+
+## Troubleshooting
+If you encounter any issues during installation or configuration, consider the following troubleshooting tips:
+
+Double-check your serial communication settings to ensure they match those specified in the configuration files.
+Verify that all dependencies, including the serial package, are properly installed and built.
+Refer to the ROS 2 documentation or community forums for additional support if needed.
+
+## Acknowledgments
+I would like to acknowledge the contributions of the ROS 2 community and the developers of the ros2_control and serial packages for their invaluable support.
