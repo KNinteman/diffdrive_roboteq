@@ -1,0 +1,9 @@
+<library path="diffdrive_roboteq">
+    <class name="diffdrive_roboteq/DiffDriveRoboteqHardware"
+        type="diffdrive_roboteq::DiffDriveRoboteqHardware"
+        base_class_type="hardware_interface::SystemInterface">
+        <description>
+            The ros2_control DiffDriveRoboteqHardware uses a system hardware interface-type. It uses velocity command and position state interfaces. 
+        </description>
+    </class>
+</library>
