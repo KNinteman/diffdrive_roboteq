@@ -61,4 +61,4 @@ Verify that all dependencies, including the serial package, are properly install
 Refer to the ROS 2 documentation or community forums for additional support if needed.
 
 ## Acknowledgments
-I would like to acknowledge the contributions of the ROS 2 community and the developers of the ros2_control and serial packages for their invaluable support.
+I would like to acknowledge the contributions of the ROS 2 community and the developers of the ros2_control and serial packages for their support.
