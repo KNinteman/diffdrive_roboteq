@@ -30,10 +30,5 @@ QueryConfig loadQueryConfig(const std::string& yaml_file_path) {
         std::cerr << "Failed to load YAML config: " << e.what() << std::endl;
     }
 
-    // Print the content of the loaded configuration
-    for (const auto& pair : config.queries) {
-        std::cout << "Topic: " << pair.first << " -> Query: " << pair.second << std::endl;
-    }
-
     return config;
 }
