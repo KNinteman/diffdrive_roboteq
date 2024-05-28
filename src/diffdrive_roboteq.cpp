@@ -174,7 +174,6 @@ namespace diffdrive_roboteq
     */
     hardware_interface::CallbackReturn DiffDriveRoboteqHardware::on_configure(const rclcpp_lifecycle::State & /*previous_state*/)
     {   
-        RCLCPP_INFO(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Configuring up ...please wait...");
         try {
             // Set up the serial port with the specified configuration parameters
             ser_.setPort(conf_.serial_port);
@@ -197,7 +196,6 @@ namespace diffdrive_roboteq
 
         return hardware_interface::CallbackReturn::SUCCESS;
     }
-
 
     /**
     * @brief Cleans up the hardware communication.
@@ -310,10 +308,6 @@ namespace diffdrive_roboteq
 
         ss1 << "# " << conf_.frequency << "_";
 
-        // Log ss0 and ss1
-        RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "ss0: " << ss0.str());
-        RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "ss1: " << ss1.str());
-
         // Write commands to serial
         ser_.write(ss0.str());
         ser_.write(ss1.str());
@@ -332,7 +326,8 @@ namespace diffdrive_roboteq
     {
         // Check if the serial port is open
         if (!ser_.isOpen()) {
-            RCLCPP_ERROR(rclcpp::get_logger("DiffDriveRoboteqHardware"), 
+            RCLCPP_ERROR(
+                rclcpp::get_logger("DiffDriveRoboteqHardware"), 
                 "Serial port is not open. Unable to activate.");
             return hardware_interface::CallbackReturn::ERROR;
         }
