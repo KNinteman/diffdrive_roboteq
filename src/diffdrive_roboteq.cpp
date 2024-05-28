@@ -330,7 +330,6 @@ namespace diffdrive_roboteq
     */
     hardware_interface::CallbackReturn DiffDriveRoboteqHardware::on_activate(const rclcpp_lifecycle::State & /*previous_state*/)
     {
-        RCLCPP_INFO(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Activing ...please wait...");
         // Check if the serial port is open
         if (!ser_.isOpen()) {
             RCLCPP_ERROR(rclcpp::get_logger("DiffDriveRoboteqHardware"), 
