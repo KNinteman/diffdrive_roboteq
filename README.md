@@ -10,7 +10,7 @@ To begin using `diffdrive_roboteq`, follow these steps:
 1. Clone this repository into your ROS 2 workspace:
    ```
    cd {your_ros2_ws}/src
-   git clone https://github.com/{your_username}/diffdrive_roboteq.git
+   git clone https://github.com/KNinteman/diffdrive_roboteq.git
    ```
 2. Navigate to your ROS 2 workspace root directory and build the package:
    ```
