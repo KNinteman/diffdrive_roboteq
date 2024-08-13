@@ -2,7 +2,7 @@
 A ROS2_Control Hardware Interface for a Roboteq Motor Controller designed for differential drive systems.
 
 ## Overview
-This package provides a ROS2 Control hardware interface for interacting with a Roboteq Motor Controller. It is specifically tailored for use with the `diff_drive_controller` from `ros2_control`. The interface is configured to communicate via serial connection and assumes the presence of two motors, each capable of velocity control with position/velocity feedback. This hardware interface has been tested with [SBLMG2360T Roboteq Motor Controller](https://www.roboteq.com/products/products-brushless-dc-motor-controllers/sblm2360t-452-detail).
+This package provides a ROS2_Control hardware interface for interacting with a Roboteq Motor Controller. It is specifically tailored for use with the `diff_drive_controller` from `ros2_control`. The interface is configured to communicate via serial connection and assumes the presence of two motors, each capable of velocity control with position/velocity feedback. This hardware interface has been tested with [SBLMG2360T Roboteq Motor Controller](https://www.roboteq.com/products/products-brushless-dc-motor-controllers/sblm2360t-452-detail).
 
 ## Getting Started
 To begin using `diffdrive_roboteq`, follow these steps:
