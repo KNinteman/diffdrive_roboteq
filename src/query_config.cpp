@@ -1,15 +1,15 @@
-#include "yaml-cpp/yaml.h"
-#include <string>
-#include <map>
-#include <iostream>
 #include <fstream>
+#include <iostream>
+#include <map>
+#include <string>
+#include "yaml-cpp/yaml.h"
 
 class QueryConfig {
 public:
     std::map<std::string, std::string> queries;
 };
 
-QueryConfig loadQueryConfig(const std::string& yaml_file_path) {
+QueryConfig load_query_config(const std::string& yaml_file_path) {
     QueryConfig config;
 
     // Check if the file exists
@@ -29,6 +29,5 @@ QueryConfig loadQueryConfig(const std::string& yaml_file_path) {
     } catch (const YAML::Exception& e) {
         std::cerr << "Failed to load YAML config: " << e.what() << std::endl;
     }
-
     return config;
 }

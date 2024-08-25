@@ -1,114 +1,146 @@
 #include "diffdrive_roboteq/diffdrive_roboteq.hpp"
 
-#include "hardware_interface/lexical_casts.hpp"
-#include "hardware_interface/types/hardware_interface_type_values.hpp"
-#include "rclcpp/rclcpp.hpp"
-#include "std_msgs/msg/string.hpp"
-
 namespace diffdrive_roboteq
 { 
     /**
-    * @brief Initializes the hardware with the provided configuration and checks joint configuration.
+    * @brief Initialises the hardware with the provided configuration and checks joint configuration.
     *
-    * This method initializes the hardware with the configuration provided in the hardware info object.
-    * It extracts parameters such as serial port, baud rate, wheel radius, etc., from the hardware info
-    * object and initializes internal variables accordingly. Additionally, it checks the configuration
-    * of each joint to ensure that it has the correct number and type of command and state interfaces.
-    * If any joint is misconfigured, a fatal error is logged, and the method returns an error status.
+    * This method intialises the hardware with the configuration provided in the hardware info paramters 
+      and initialises the vectors that hold the for the command and state interfaces.
+    * Additionally, it validates whether the amount of joint are the same as the amount of joints that are expected.
     *
     * @param info The hardware info object containing configuration parameters and joint information.
     * @return hardware_interface::CallbackReturn The initialization status, indicating whether the
-    * initialization was successful or if an error occurred.
+    * initialisation was successful or if an error occurred.
+
     */
     hardware_interface::CallbackReturn DiffDriveRoboteqHardware::on_init(const hardware_interface::HardwareInfo & info)
         {
-            // Check if class initialization is successful
-            if (
-                hardware_interface::SystemInterface::on_init(info) !=
-                hardware_interface::CallbackReturn::SUCCESS)
-            {
+            // Check if class initialisation is successful
+            if (hardware_interface::SystemInterface::on_init(info) != hardware_interface::CallbackReturn::SUCCESS) {
                 return hardware_interface::CallbackReturn::ERROR;
             }
 
-            // Extract hardware parameters from info
-            conf_.serial_port = info_.hardware_parameters["serial_port"];
-            conf_.baud_rate = std::stoi(info_.hardware_parameters["baud_rate"]);
-            conf_.closed_loop = (info_.hardware_parameters["closed_loop"] == "true");
-            conf_.wheel_radius = hardware_interface::stod(info_.hardware_parameters["wheel_radius"]);
-            conf_.wheel_circumference = hardware_interface::stod(info_.hardware_parameters["wheel_circumference"]);
-            conf_.max_rpm = hardware_interface::stod(info_.hardware_parameters["max_rpm"]);
-            conf_.frequency = std::stoi(info_.hardware_parameters["frequency"]);
-            conf_.count_per_revolution = std::stoi(info_.hardware_parameters["count_per_revolution"]);
-            conf_.gear_reduction = hardware_interface::stod(info_.hardware_parameters["gear_reduction"]);   
-            conf_.query_config = info_.hardware_parameters["query_config"];     
+            extract_hardware_parameters(info);
+            initialise_interfaces(info);
 
-            // Initialize hardware state and command interfaces
-            hw_positions_.resize(info_.joints.size(), 0.0);
-            hw_velocities_.resize(info_.joints.size(), 0.0);
-            hw_commands_.resize(info_.joints.size(), 0.0);
+            validate_joint_config(info);
 
-            // Iterate over each joint in the info object to validate its configuration
-            for (const auto & joint : info_.joints)
+            return hardware_interface::CallbackReturn::SUCCESS;
+        }
+
+    /**
+    * @brief Extracts hardware parameters from the provided hardware info parameters.
+    *
+    * This method extracts parameters from the hardware info parameter's yaml file and initialises internal variables accordingly. 
+    * These parameters are crucial for configuring and operating the hardware.
+    *
+    * @param info The hardware info object containing configuration parameters and joint information.
+    */
+    void DiffDriveRoboteqHardware::extract_hardware_parameters(const hardware_interface::HardwareInfo & info)
+    {
+        conf_.serial_port = info_.hardware_parameters["serial_port"];
+        conf_.baud_rate = std::stoi(info_.hardware_parameters["baud_rate"]);
+        conf_.closed_loop = (info_.hardware_parameters["closed_loop"] == "true");
+        conf_.wheel_radius = hardware_interface::stod(info_.hardware_parameters["wheel_radius"]);
+        conf_.wheel_circumference = hardware_interface::stod(info_.hardware_parameters["wheel_circumference"]);
+        conf_.max_rpm = hardware_interface::stod(info_.hardware_parameters["max_rpm"]);
+        conf_.frequency = std::stoi(info_.hardware_parameters["frequency"]);
+        conf_.count_per_revolution = std::stoi(info_.hardware_parameters["count_per_revolution"]);
+        conf_.gear_reduction = hardware_interface::stod(info_.hardware_parameters["gear_reduction"]);   
+        conf_.query_config = info_.hardware_parameters["query_config"];  
+    }
+
+    /**
+    * @brief initialises the vectors for command and state interfaces.
+    *
+    * This method initialises the hardware interfaces for positions, velocities, commands and encoder speeds
+    * It resizes the internal vectors to accommodate the number of joints.
+    * Each vector is initialised with default values (0.0)
+    *
+    * @param info The hardware info object containing configuration parameters and joint information.
+    */
+    void DiffDriveRoboteqHardware::initialise_interfaces(const hardware_interface::HardwareInfo & info)
+    {
+        hw_positions_.resize(info_.joints.size(), 0.0);
+        hw_velocities_.resize(info_.joints.size(), 0.0);
+        hw_commands_.resize(info_.joints.size(), 0.0);
+        hw_encoder_speed_.resize(info_.joints.size(), 0.0);
+    }
+
+    /**
+    * @brief Validates the configuration of joints in the hardware.
+    *
+    * This method validates the configuration of each joint. 
+    * It makes sure that each joint has exactly one command interface of type
+    * velocity and exactly two state interfaces of types position and velocity.
+    *
+    * @param info The hardware info object containing configuration parameters and joint information.
+    * @return hardware_interface::CallbackReturn The validation status, indicating whether the
+    * joint configuration is correct or if an error occurred.
+    */
+    hardware_interface::CallbackReturn DiffDriveRoboteqHardware::validate_joint_config(const hardware_interface::HardwareInfo & info)
+    {
+        for (const auto & joint : info_.joints)
             {
                 // Check that each joint has exactly one command interface
                 if (joint.command_interfaces.size() != 1)
                 {
-                RCLCPP_FATAL(
-                    rclcpp::get_logger("DiffDriveRoboteqHardware"),
-                    "Joint '%s' has %zu command interfaces found. 1 expected.", 
-                    joint.name.c_str(), joint.command_interfaces.size());
-                return hardware_interface::CallbackReturn::ERROR;
+                    RCLCPP_FATAL(
+                        rclcpp::get_logger("DiffDriveRoboteqHardware"),
+                        "Joint '%s' has %zu command interfaces found. 1 expected.", 
+                        joint.name.c_str(), joint.command_interfaces.size());
+                    return hardware_interface::CallbackReturn::ERROR;
                 }
 
                 // Check that the command interface is of type velocity
                 if (joint.command_interfaces[0].name != hardware_interface::HW_IF_VELOCITY)
                 {
-                RCLCPP_FATAL(
-                    rclcpp::get_logger("DiffDriveRoboteqHardware"),
-                    "Joint '%s' have %s command interfaces found. '%s' expected.", 
-                    joint.name.c_str(), joint.command_interfaces[0].name.c_str(), hardware_interface::HW_IF_VELOCITY);
-                return hardware_interface::CallbackReturn::ERROR;
+                    RCLCPP_FATAL(
+                        rclcpp::get_logger("DiffDriveRoboteqHardware"),
+                        "Joint '%s' have %s command interfaces found. '%s' expected.", 
+                        joint.name.c_str(), joint.command_interfaces[0].name.c_str(), hardware_interface::HW_IF_VELOCITY);
+                    return hardware_interface::CallbackReturn::ERROR;
                 }
 
                 // Check that each joint has exactly two state interfaces
                 if (joint.state_interfaces.size() != 2)
                 {
-                RCLCPP_FATAL(
-                    rclcpp::get_logger("DiffDriveRoboteqHardware"),
-                    "Joint '%s' has %zu state interface. 2 expected.", 
-                    joint.name.c_str(), joint.state_interfaces.size());
-                return hardware_interface::CallbackReturn::ERROR;
+                    RCLCPP_FATAL(
+                        rclcpp::get_logger("DiffDriveRoboteqHardware"),
+                        "Joint '%s' has %zu state interface. 2 expected.", 
+                        joint.name.c_str(), joint.state_interfaces.size());
+                    return hardware_interface::CallbackReturn::ERROR;
                 }
 
                 // Check that the first state interface is of type position
                 if (joint.state_interfaces[0].name != hardware_interface::HW_IF_POSITION)
                 {
-                RCLCPP_FATAL(
-                    rclcpp::get_logger("DiffDriveRoboteqHardware"),
-                    "Joint '%s' have '%s' as first state interface. '%s' expected.", 
-                    joint.name.c_str(), joint.state_interfaces[0].name.c_str(), hardware_interface::HW_IF_POSITION);
-                return hardware_interface::CallbackReturn::ERROR;
+                    RCLCPP_FATAL(
+                        rclcpp::get_logger("DiffDriveRoboteqHardware"),
+                        "Joint '%s' have '%s' as first state interface. '%s' expected.", 
+                        joint.name.c_str(), joint.state_interfaces[0].name.c_str(), hardware_interface::HW_IF_POSITION);
+                    return hardware_interface::CallbackReturn::ERROR;
                 }
 
                 // Check that the second state interface is of type velocity
                 if (joint.state_interfaces[1].name != hardware_interface::HW_IF_VELOCITY)
                 {
-                RCLCPP_FATAL(
-                    rclcpp::get_logger("DiffDriveRoboteqHardware"),
-                    "Joint '%s' have '%s' as second state interface. '%s' expected.", 
-                    joint.name.c_str(), joint.state_interfaces[1].name.c_str(), hardware_interface::HW_IF_VELOCITY);
-                return hardware_interface::CallbackReturn::ERROR;
+                    RCLCPP_FATAL(
+                        rclcpp::get_logger("DiffDriveRoboteqHardware"),
+                        "Joint '%s' have '%s' as second state interface. '%s' expected.", 
+                        joint.name.c_str(), joint.state_interfaces[1].name.c_str(), hardware_interface::HW_IF_VELOCITY);
+                    return hardware_interface::CallbackReturn::ERROR;
                 }
             }
-            return hardware_interface::CallbackReturn::SUCCESS;
-        }
+    }
 
     /**
     * @brief Exports the state interfaces provided by the hardware.
     *
     * This method defines and exports the state interfaces for each joint. Each joint
     * is associated with position and velocity state interfaces. These interfaces allow
-    * the hardware to communicate its state (position and velocity) to the controller.
+    * the hardware to export its states (position and velocity).
     * 
     * @return std::vector<hardware_interface::StateInterface> A vector containing the state interfaces for all joints.
     */
@@ -117,11 +149,10 @@ namespace diffdrive_roboteq
         // Create a vector to hold the state interfaces
         std::vector<hardware_interface::StateInterface> state_interfaces;
 
-        // Reserve space in the vector to prevent unnecessary reallocations
+        // Reserve space in the vector
         constexpr std::size_t state_interfaces_per_joint = 2;
         state_interfaces.reserve(info_.joints.size() * state_interfaces_per_joint);
 
-        // Loop over each joint in the hardware info
         for (auto i = 0u; i < info_.joints.size(); i++)
         {
             // Add position state interface for the current joint
@@ -131,18 +162,22 @@ namespace diffdrive_roboteq
             // Add velocity state interface for the current joint
             state_interfaces.emplace_back(hardware_interface::StateInterface(
                 info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_velocities_[i]));
+
+            // Add encoder_speed for the current joint
+            state_interfaces.emplace_back(hardware_interface::StateInterface(
+                info_.joints[i].name, "encoder_speed", &hw_positions_[i]));
         }
 
-        // Return the vector of state interfaces
         return state_interfaces;
     }
+    
 
     /**
     * @brief Exports the command interfaces provided by the hardware.
     *
     * This method defines and exports the command interfaces for each joint. Each joint
     * is associated with a velocity command interface. These interfaces allow the controller
-    * to send velocity commands to the hardware.
+    * to export velocity commands.
     * 
     * @return std::vector<hardware_interface::CommandInterface> A vector containing the command interfaces for all joints.
     */
@@ -151,7 +186,6 @@ namespace diffdrive_roboteq
         // Create a vector to hold the command interfaces
         std::vector<hardware_interface::CommandInterface> command_interfaces;
 
-        // Loop over each joint in the hardware info
         for (auto i = 0u; i < info_.joints.size(); i++)
         {
             // Add velocity command interface for the current joint
@@ -159,15 +193,14 @@ namespace diffdrive_roboteq
                 info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_commands_[i]));
         }
 
-        // Return the vector of command interfaces
         return command_interfaces;
     }
 
     /**
-    * @brief Configures the hardware communication.
+    * @brief Starts hardware communication with the Roboteq Motor Controller.
     * 
     * This method sets up the communication to the hardware and prepares it for activation.
-    * It initializes the serial port with the specified settings such as port name and baud rate.
+    * It initialises the serial port with the specified settings such as baud rate.
     * 
     * @param previous_state The previous lifecycle state of the hardware component.
     * @return CallbackReturn Returns a status indicating the success or failure of the configuration process.
@@ -175,19 +208,19 @@ namespace diffdrive_roboteq
     hardware_interface::CallbackReturn DiffDriveRoboteqHardware::on_configure(const rclcpp_lifecycle::State & /*previous_state*/)
     {   
         try {
-            // Set up the serial port with the specified configuration parameters
             ser_.setPort(conf_.serial_port);
             ser_.setBaudrate(conf_.baud_rate);
             serial::Timeout timeout = serial::Timeout::simpleTimeout(1000);
-            ser_.setTimeout(timeout);
-            ser_.open();
+            ser_.setTimeout(tim.eout);
+            ser_open();
         } catch (serial::IOException &e) {
+            RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Serial Port " << conf_.serial_port << " is not open.");
             return hardware_interface::CallbackReturn::ERROR;
         }
 
         if (ser_.isOpen()) {
             // If the port is open, log a message indicating successful initialization
-            RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Serial Port " << conf_.serial_port << " initialized.");
+            RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Serial Port " << conf_.serial_port << " initialised.");
         } else {
             // If the port is not open, log a message indicating failure and shutdown the ROS node
             RCLCPP_ERROR_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Serial Port " << conf_.serial_port << " is not open.");
@@ -200,43 +233,38 @@ namespace diffdrive_roboteq
     /**
     * @brief Cleans up the hardware communication.
     * 
-    * This method closes the serial port to clean up the hardware communication interface.
+    * This method closes the serial port.
     * 
     * @param previous_state The previous lifecycle state of the hardware component.
     * @return CallbackReturn Returns a status indicating the success or failure of the cleanup process.
     */
     hardware_interface::CallbackReturn DiffDriveRoboteqHardware::on_cleanup(const rclcpp_lifecycle::State & /*previous_state*/)
     {
-        // Log a message indicating that the cleanup process is starting
-        RCLCPP_INFO(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Cleaning up ...please wait...");
+        RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Cleaning up ...please wait...");
         
         try {
-            // Check if the serial port is open and close it if so
             if (ser_.isOpen()) {
                 ser_.close();
                 RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Serial Port " << conf_.serial_port << " closed.");
             } else {
-                // Log a warning if the serial port was not open
                 RCLCPP_ERROR_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Serial Port " << conf_.serial_port << " was not open.");
             }
         } catch (const serial::IOException &e) {
-            // Log an error if an exception occurs during the closing process
             RCLCPP_ERROR_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Error while closing serial port: " << e.what());
         }
 
-        // Log a message indicating successful cleanup
-        RCLCPP_INFO(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Successfully cleaned up!");
+        RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Successfully cleaned up!");
 
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
     /**
-    * @brief Halts the motion of motors controlled by the DiffDriveRoboteqHardware class.
+    * @brief Stops the motors.
     * 
     * Sends commands to the serial port interface (ser_) to stop motor 1 and motor 2.
-    * After sending the commands, it flushes the serial port buffer to ensure immediate transmission.
+    * After sending the commands, it flushes the serial port buffer to make sure its sends immediately.
     */
-    void DiffDriveRoboteqHardware::stopMotors() {
+    void DiffDriveRoboteqHardware::stop_motors() {
         ser_.write("!G 1 0\r");
         ser_.write("!G 2 0\r");
         ser_.write("!S 1 0\r");
@@ -245,13 +273,13 @@ namespace diffdrive_roboteq
     }
 
     /**
-    * @brief Configures the hardware settings for motor operation.
+    * @brief Configures the motors.
     * 
     * Enables the watchdog timer and sets the motor operating mode based on configuration parameters.
     * If closed loop control is disabled, sets motor operating mode to open loop (0),
     * otherwise sets it to closed loop (1) for both motors.
     */
-    void DiffDriveRoboteqHardware::configureHardware() {
+    void DiffDriveRoboteqHardware::configure_hardware() {
         // Enable watchdog timer
         ser_.write("^RWD 1000\r");
 
@@ -269,33 +297,33 @@ namespace diffdrive_roboteq
     /**
     * @brief Sets the encoder counts for the motors.
     * 
-    * Constructs commands to set the encoder counts for motor 1 and motor 2, 
+    * Creates commands to set the encoder counts for motor 1 and motor 2, 
     * then sends these commands to the serial port interface (ser_).
-    * After sending the commands, it flushes the serial port buffer to ensure immediate transmission.
+    * After sending the commands, it flushes the serial port buffer to make sure its sends immediately.
     */
-    // void DiffDriveRoboteqHardware::setEncoderCounts() {
-    //     std::stringstream right_enccmd;
-    //     std::stringstream left_enccmd;
-    //     right_enccmd << "^EPPR 1 " << 1024 << "\r";
-    //     left_enccmd << "^EPPR 2 " << 1024 << "\r";
-    //     ser_.write(right_enccmd.str());
-    //     ser_.write(left_enccmd.str());
-    //     ser_.flush();
-    // }
+    void DiffDriveRoboteqHardware::set_encoder_counts() {
+        std::stringstream right_enccmd;
+        std::stringstream left_enccmd;
+        right_enccmd << "^EPPR 1 " << 1024 << "\r";
+        left_enccmd << "^EPPR 2 " << 1024 << "\r";
+        ser_.write(right_enccmd.str());
+        ser_.write(left_enccmd.str());
+        ser_.flush();
+    }
 
     /**
-    * @brief Loads query configurations and writes them to the serial port interface.
+    * @brief Loads query configurations and writes them to the serial port.
     * 
     * Loads query configurations from the provided configuration (conf_.query_config),
-    * formats the queries into two string streams (ss0 and ss1), and writes them to the serial port interface (ser_).
-    * After sending the commands, it flushes the serial port buffer to ensure immediate transmission.
+    * formats the queries into two stringstreams (ss0 and ss1), and writes them to the serial port interface (ser_).
+    * After sending the commands, it flushes the serial port buffer to make sure its sends immediately.
     */
-    void DiffDriveRoboteqHardware::loadAndWriteQueries() {
-        query_config_ = loadQueryConfig(conf_.query_config);
+    void DiffDriveRoboteqHardware::load_and_write_queries() {
+        query_config_ = load_query_config(conf_.query_config);
 
         std::stringstream ss0, ss1;
-        ss0 << "^echof 1_";                 // ^echof 1_
-        ss1 << "# c_/\"DH?\",\"?\"";        // # c_/"DH?","?"?C_?S_?F_?A_?M_?V_# 50_
+        ss0 << "^echof 1_";
+        ss1 << "# c_/\"DH?\",\"?\"";        
     
         // Iterate over the queries and format them into the stringstream
         for (const auto& query : query_config_.queries) {
@@ -317,13 +345,13 @@ namespace diffdrive_roboteq
     /**
     * @brief Activates the hardware components.
     * 
-    * Checks if the serial port is open. If not, logs an error and returns an error status.
-    * Otherwise, it stops the motors, configures hardware settings, loads and writes queries to the serial port,
+    * Checks if the serial port is open.
+    * If it is it stops the motors, configures hardware settings, loads and writes queries to the serial port,
     * and returns a success status upon successful activation. 
-    * If any error occurs during the activation process, it logs an error and returns an error status.
     */
     hardware_interface::CallbackReturn DiffDriveRoboteqHardware::on_activate(const rclcpp_lifecycle::State & /*previous_state*/)
     {
+        RCLCPP_INFO(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Activing ...please wait...");
         // Check if the serial port is open
         if (!ser_.isOpen()) {
             RCLCPP_ERROR(
@@ -332,10 +360,10 @@ namespace diffdrive_roboteq
             return hardware_interface::CallbackReturn::ERROR;
         }
         try {
-            stopMotors();
-            configureHardware();
-            // setEncoderCounts();
-            loadAndWriteQueries();
+            stop_motors();
+            configure_hardware();
+            // set_encoder_counts();
+            load_and_write_queries();
         } catch (const serial::IOException &e) {
             RCLCPP_ERROR_STREAM(
                 rclcpp::get_logger("DiffDriveRoboteqHardware"), 
@@ -347,22 +375,27 @@ namespace diffdrive_roboteq
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
-    // Implement the on_deactivate method, which does the opposite of on_activate.
+    /**
+     * @brief Deactivates the hardware components.
+     * 
+     * Currently not implemented.
+     * 
+     */
     hardware_interface::CallbackReturn DiffDriveRoboteqHardware::on_deactivate(const rclcpp_lifecycle::State & /*previous_state*/)
     {
-        RCLCPP_INFO(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Deactivating ...please wait...");
-        RCLCPP_INFO(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Successfully deactivated!");
+        RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Deactivating ...please wait...");
+        RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Successfully deactivated!");
 
         return hardware_interface::CallbackReturn::SUCCESS;
     }
 
     /**
-    * @brief Generates a string representing the current date and time with milliseconds.
+    * @brief Generates the current date and time with milliseconds.
     * 
     * Retrieves the current system time and formats it as a string in the format "YYYY-MM-DD HH:MM:SS.sss",
-    * where "sss" represents milliseconds. The generated string includes the local time.
+    * where "sss" represents milliseconds.
     * 
-    * @return A string representing the current date and time with milliseconds.
+    * @return The current date and time with milliseconds, as a string.
     */
     std::string current_date_time() {
         auto now = std::chrono::system_clock::now();
@@ -380,12 +413,12 @@ namespace diffdrive_roboteq
     /**
     * @brief Cleans up the result string by removing specific characters.
     *
-    * This function removes carriage return ("\r"), plus ("+"), and "DH?" substrings
+    * This function removes return ("\r"), plus ("+"), and "DH?" substrings
     * from the given result string. It modifies the input string in-place.
     *
-    * @param result The result string to be cleaned up.
+    * @param result The string to be cleaned up.
     */
-    void DiffDriveRoboteqHardware::cleanUpResultString(std_msgs::msg::String& result) {
+    void DiffDriveRoboteqHardware::clean_up_result_string(std_msgs::msg::String& result) {
         boost::replace_all(result.data, "\r", "");
         boost::replace_all(result.data, "+", ""); 
         boost::replace_all(result.data, "DH?", ""); 
@@ -401,7 +434,7 @@ namespace diffdrive_roboteq
     *
     * @param result The result string to be processed.
     */
-    void DiffDriveRoboteqHardware::processResult(std_msgs::msg::String& result) {
+    void DiffDriveRoboteqHardware::process_result(std_msgs::msg::String& result) {
         if (!result.data.empty()) {
             std::vector<std::string> results;
             boost::split(results, result.data, boost::is_any_of("?"));
@@ -418,22 +451,22 @@ namespace diffdrive_roboteq
                 for (size_t i = 0; i < results.size(); ++i) {
                     data_map[topic_list_[i]] = results[i];
                 }
-                printResults(data_map);
-                processEncoderData(data_map);
+                print_results(data_map);
+                process_encoder_data(data_map);
             }
         }
     }
 
     /**
-    * @brief Prints the contents of the data map to the console.
+    * @brief Logs the contents of the data map to the console.
     *
-    * This function prints the current timestamp along with the contents of the
+    * This function logs the current timestamp along with the contents of the
     * given data map to the console. It iterates over each key-value pair in the
-    * map and prints them in the format "key: value".
+    * map and logs them in the format "key: value".
     *
     * @param data_map The map containing data to be printed.
     */
-    void DiffDriveRoboteqHardware::printResults(const std::map<std::string, std::string>& data_map) {
+    void DiffDriveRoboteqHardware::print_results(const std::map<std::string, std::string>& data_map) {
         // Print the current time
         RCLCPP_INFO_STREAM(
             rclcpp::get_logger("DiffDriveRoboteqHardware"),
@@ -454,12 +487,12 @@ namespace diffdrive_roboteq
     *
     * This function checks if the given data map contains entries for encoder speed
     * and encoder count topics. If both topics are present, it extracts their values
-    * from the map and passes them to the processEncoderValues function for further
+    * from the map and passes them to the process_encoder_values function for further
     * processing.
     *
     * @param data_map The map containing encoder data.
     */
-    void DiffDriveRoboteqHardware::processEncoderData(const std::map<std::string, std::string>& data_map)
+    void DiffDriveRoboteqHardware::process_encoder_data(const std::map<std::string, std::string>& data_map)
     {
         const std::string encoder_speed_topic = "encoder_speed";
         const std::string encoder_count_topic = "encoder_count";
@@ -470,7 +503,7 @@ namespace diffdrive_roboteq
             std::string encoder_speed_value = data_map.at(encoder_speed_topic);
             std::string encoder_count_value = data_map.at(encoder_count_topic);
 
-            processEncoderValues(encoder_speed_value, encoder_count_value);
+            process_encoder_values(encoder_speed_value, encoder_count_value);
         }
     }
 
@@ -480,12 +513,12 @@ namespace diffdrive_roboteq
     * This function splits the given encoder speed and count values and calculates
     * the corresponding linear velocities and encoder angles for left and right wheels.
     * It updates the hardware interfaces with the calculated values if the data format
-    * is valid; otherwise, it prints an error message to the console.
+    * is valid.
     *
     * @param encoder_speed_value The string containing encoder speed values.
     * @param encoder_count_value The string containing encoder count values.
     */
-    void DiffDriveRoboteqHardware::processEncoderValues(const std::string& encoder_speed_value, const std::string& encoder_count_value) {
+    void DiffDriveRoboteqHardware::process_encoder_values(const std::string& encoder_speed_value, const std::string& encoder_count_value) {
         // Split the values for left and right wheels
         std::vector<std::string> speed_values;
         std::vector<std::string> count_values;
@@ -493,8 +526,8 @@ namespace diffdrive_roboteq
         boost::split(count_values, encoder_count_value, boost::is_any_of(":"));
 
         if (speed_values.size() == 2 && count_values.size() == 2) {
-            int left_encoder_speed = std::stoi(speed_values[0]);
-            int right_encoder_speed = std::stoi(speed_values[1]);
+            int left_encoder_speed = std::stoi(speed_values[0]);  
+            int right_encoder_speed = std::stoi(speed_values[1]); 
             int left_encoder_count = std::stoi(count_values[0]);
             int right_encoder_count = std::stoi(count_values[1]);
 
@@ -506,7 +539,7 @@ namespace diffdrive_roboteq
             double left_enc_angle = left_encoder_count * rads_per_count;
             double right_enc_angle = right_encoder_count * rads_per_count;
 
-            updateHardwareInterfaces(left_linear_velocity, right_linear_velocity, left_enc_angle, right_enc_angle);
+            update_hardware_interfaces(left_linear_velocity, right_linear_velocity, left_enc_angle, right_enc_angle, left_encoder_speed, right_encoder_speed);
         } else {
             std::cout << "Invalid data format for encoder values." << std::endl;
         }
@@ -524,12 +557,15 @@ namespace diffdrive_roboteq
     * @param left_enc_angle The encoder angle of the left wheel.
     * @param right_enc_angle The encoder angle of the right wheel.
     */
-    void DiffDriveRoboteqHardware::updateHardwareInterfaces(double left_linear_velocity, double right_linear_velocity, double left_enc_angle, double right_enc_angle)
+    void DiffDriveRoboteqHardware::update_hardware_interfaces(double left_linear_velocity, double right_linear_velocity, 
+        double left_enc_angle, double right_enc_angle, double left_encoder_speed, double right_encoder_speed)
     {
         hw_velocities_[0] = left_linear_velocity;
         hw_velocities_[1] = right_linear_velocity;
         hw_positions_[0] = left_enc_angle;
         hw_positions_[1] = right_enc_angle;
+        hw_encoder_speed_[0] = left_encoder_speed;
+        hw_encoder_speed_[1] = right_encoder_speed;
 
         // Log the updated values separately for clarity
         RCLCPP_INFO_STREAM(
@@ -547,6 +583,14 @@ namespace diffdrive_roboteq
         RCLCPP_INFO_STREAM(
             rclcpp::get_logger("DiffDriveRoboteqHardware"),
             "encoder_angle (R): " << right_enc_angle
+        );
+        RCLCPP_INFO_STREAM(
+            rclcpp::get_logger("DiffDriveRoboteqHardware"),
+            "encoder_speed (L): " << left_encoder_speed
+        );
+        RCLCPP_INFO_STREAM(
+            rclcpp::get_logger("DiffDriveRoboteqHardware"),
+            "encoder_speed (R): " << right_encoder_speed
         );
         RCLCPP_INFO_STREAM(
             rclcpp::get_logger("DiffDriveRoboteqHardware"),
@@ -580,8 +624,8 @@ namespace diffdrive_roboteq
             if (ser_.available()) {
                 std_msgs::msg::String result;
                 result.data = ser_.read(ser_.available());
-                cleanUpResultString(result);
-                processResult(result);
+                clean_up_result_string(result);
+                process_result(result);
             }
             return hardware_interface::return_type::OK;
         } catch (const std::exception &e) {
@@ -599,54 +643,19 @@ namespace diffdrive_roboteq
     *
     * @param cmd_str The stringstream to store the prepared command string.
     */
-    void DiffDriveRoboteqHardware::prepareCommandString(std::stringstream& cmd_str)
+    void DiffDriveRoboteqHardware::prepare_command_string(std::stringstream& cmd_str)
     {
         float left_speed  = hw_commands_[0];
         float right_speed = hw_commands_[1];
 
-        if (conf_.closed_loop) {
-            prepareClosedLoopCommand(cmd_str, left_speed, right_speed);
-        } else {
-            prepareOpenLoopCommand(cmd_str, left_speed, right_speed);
-        }
-    }
+        float right_power = right_speed * 100; //285 MAX. SET TO 100 IN ORDER TO INFLUENCE MAX SPEED.
+        float left_power  = left_speed  * 100; //285 MAX
 
-    /**
-    * @brief Prepares a closed-loop command string for motor control.
-    *
-    * This function prepares a closed-loop command string for controlling the motors
-    * based on the given left and right speed values. It calculates the corresponding
-    * RPM values and appends them to the given stringstream.
-    *
-    * @param cmd_str The stringstream to store the prepared command string.
-    * @param left_speed The speed of the left motor.
-    * @param right_speed The speed of the right motor.
-    */
-    void DiffDriveRoboteqHardware::prepareClosedLoopCommand(std::stringstream& cmd_str, float left_speed, float right_speed)
-    {
-        int32_t left_rpm  = left_speed  * 60.0 / conf_.wheel_circumference;
-        int32_t right_rpm = right_speed * 60.0 / conf_.wheel_circumference;
+        // if (left_power < 0) {
+        //     right_power -= left_power;
+        //     left_power = 0;
+        // };
 
-        cmd_str << "!S 1" << " " << left_rpm << "_"
-                << "!S 2" << " " << right_rpm << "_";
-    }
-
-    /**
-    * @brief Prepares an open-loop command string for motor control.
-    *
-    * This function prepares an open-loop command string for controlling the motors
-    * based on the given left and right speed values. It calculates the corresponding
-    * power values and appends them to the given stringstream.
-    *
-    * @param cmd_str The stringstream to store the prepared command string.
-    * @param left_speed The speed of the left motor.
-    * @param right_speed The speed of the right motor.
-    */
-    void DiffDriveRoboteqHardware::prepareOpenLoopCommand(std::stringstream& cmd_str, float left_speed, float right_speed)
-    {
-        float right_power = right_speed *1000.0 *60.0/ (conf_.wheel_circumference * conf_.max_rpm);
-        float left_power  = left_speed  *1000.0 *60.0/ (conf_.wheel_circumference * conf_.max_rpm);
-        
         cmd_str << "!G 1" << " " << (int)left_power << "_"
                 << "!G 2" << " " << (int)right_power << "_";
     }
@@ -654,10 +663,7 @@ namespace diffdrive_roboteq
     /**
     * @brief Writes commands to the hardware.
     * 
-    * This method sends commands to the hardware based on the control mode configured
-    * (open loop or closed loop). For closed-loop mode, it calculates the motor speed
-    * (in rpm) from the commanded wheel speeds (in m/s) and sends the speed commands to
-    * the motors. For open-loop mode, it directly sends the commands to the motors.
+    * This method directly sends the commands to the motors.
     * 
     * @param time The current time (unused).
     * @param period The time elapsed since the last write operation (unused).
@@ -674,7 +680,7 @@ namespace diffdrive_roboteq
             }
             
             std::stringstream cmd_str;
-            prepareCommandString(cmd_str);
+            prepare_command_string(cmd_str);
 
             ser_.write(cmd_str.str());
             ser_.flushInput();

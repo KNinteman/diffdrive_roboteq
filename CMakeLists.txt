@@ -9,7 +9,6 @@ endif()
 find_package(ament_cmake REQUIRED)
 find_package(serial REQUIRED)
 find_package(hardware_interface REQUIRED)
-find_package(roboteq_interfaces REQUIRED)
 find_package(controller_manager REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(rclcpp REQUIRED)
@@ -39,7 +38,6 @@ target_link_libraries(diffdrive_roboteq yaml-cpp)
 # Add ament dependencies
 ament_target_dependencies(diffdrive_roboteq
   hardware_interface
-  roboteq_interfaces
   pluginlib
   controller_manager
   serial

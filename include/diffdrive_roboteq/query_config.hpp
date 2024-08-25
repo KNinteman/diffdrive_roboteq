@@ -9,6 +9,6 @@ struct QueryConfig {
     std::map<std::string, std::string> queries;
 };
 
-QueryConfig loadQueryConfig(const std::string& yaml_file_path);
+QueryConfig load_query_config(const std::string& yaml_file_path);
 
 #endif  // QUERY_CONFIG_HPP
