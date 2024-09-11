@@ -211,8 +211,8 @@ namespace diffdrive_roboteq
             ser_.setPort(conf_.serial_port);
             ser_.setBaudrate(conf_.baud_rate);
             serial::Timeout timeout = serial::Timeout::simpleTimeout(1000);
-            ser_.setTimeout(tim.eout);
-            ser_open();
+            ser_.setTimeout(timeout);
+            ser_.open();
         } catch (serial::IOException &e) {
             RCLCPP_INFO_STREAM(rclcpp::get_logger("DiffDriveRoboteqHardware"), "Serial Port " << conf_.serial_port << " is not open.");
             return hardware_interface::CallbackReturn::ERROR;
